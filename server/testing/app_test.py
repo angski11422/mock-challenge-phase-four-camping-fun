@@ -1,149 +1,190 @@
-# from datetime import datetime
+import json
+import os
+os.environ['DB_URI'] = "sqlite:///:memory:"
 
-# from app import app
-# from models import db, Message
+from flask import request
 
-# class TestApp:
-#     '''Flask application in app.py'''
+from app import app, db
+from models import Activity, Signup, Camper
 
-#     with app.app_context():
-#         m = Message.query.filter(
-#             Message.body == "Hello 👋"
-#             ).filter(Message.username == "Liza")
+class TestApp:
+    '''Flask application in app.py'''
 
-#         for message in m:
-#             db.session.delete(message)
+    def test_gets_campers(self):
+        '''retrieves campers with GET requests to /campers.'''
 
-#         db.session.commit()
+        with app.app_context():
 
-#     def test_has_correct_columns(self):
-#         with app.app_context():
+            db.create_all()
+            
+            clark = Camper(name="Clark Kent", age=9)
+            db.session.add(clark)
+            db.session.commit()
 
-#             hello_from_liza = Message(
-#                 body="Hello 👋",
-#                 username="Liza")
-
-#             db.session.add(hello_from_liza)
-#             db.session.commit()
-
-#             assert(hello_from_liza.body == "Hello 👋")
-#             assert(hello_from_liza.username == "Liza")
-#             assert(type(hello_from_liza.created_at) == datetime)
-
-#             db.session.delete(hello_from_liza)
-#             db.session.commit()
-
-#     def test_returns_list_of_json_objects_for_all_messages_in_database(self):
-#         '''returns a list of JSON objects for all messages in the database.'''
-#         with app.app_context():
-#             response = app.test_client().get('/messages')
-#             records = Message.query.all()
-
-#             for message in response.json:
-#                 assert(message['id'] in [record.id for record in records])
-#                 assert(message['body'] in [record.body for record in records])
-
-#     def test_creates_new_message_in_the_database(self):
-#         '''creates a new message in the database.'''
-#         with app.app_context():
-
-#             app.test_client().post(
-#                 '/messages',
-#                 json={
-#                     "body":"Hello 👋",
-#                     "username":"Liza",
-#                 }
-#             )
-
-#             h = Message.query.filter_by(body="Hello 👋").first()
-#             assert(h)
-
-#             db.session.delete(h)
-#             db.session.commit()
-
-#     def test_returns_data_for_newly_created_message_as_json(self):
-#         '''returns data for the newly created message as JSON.'''
-#         with app.app_context():
-
-#             response = app.test_client().post(
-#                 '/messages',
-#                 json={
-#                     "body":"Hello 👋",
-#                     "username":"Liza",
-#                 }
-#             )
-
-#             assert(response.content_type == 'application/json')
-
-#             assert(response.json["body"] == "Hello 👋")
-#             assert(response.json["username"] == "Liza")
-
-#             h = Message.query.filter_by(body="Hello 👋").first()
-#             assert(h)
-
-#             db.session.delete(h)
-#             db.session.commit()
+            response = app.test_client().get('/campers').json
+            campers = Camper.query.all()
+            assert [camper['id'] for camper in response] == [camper.id for camper in campers]
+            assert [camper['name'] for camper in response] == [camper.name for camper in campers]
+            assert [camper['age'] for camper in response] == [camper.age for camper in campers]
 
 
-#     def test_updates_body_of_message_in_database(self):
-#         '''updates the body of a message in the database.'''
-#         with app.app_context():
+    def test_gets_camper_by_id(self):
+        '''retrieves one camper using its ID with GET request to /campers/<int:id>.'''
 
-#             m = Message.query.first()
-#             id = m.id
-#             body = m.body
+        with app.app_context():
+            bruce = Camper(name="Bruce Wayne", age=11)
+            db.session.add(bruce)
+            db.session.commit()
 
-#             app.test_client().patch(
-#                 f'/messages/{id}',
-#                 json={
-#                     "body":"Goodbye 👋",
-#                 }
-#             )
+            response = app.test_client().get(f'/campers/{bruce.id}').json
+            assert response['name'] == bruce.name
+            assert response['age'] == bruce.age
 
-#             g = Message.query.filter_by(body="Goodbye 👋").first()
-#             assert(g)
+    def test_returns_404_if_no_camper(self):
+        '''returns an error message and 404 status code when a camper is searched by a non-existent ID.'''
+        
+        with app.app_context():
+            Camper.query.delete()
+            db.session.commit()
 
-#             g.body = body
-#             db.session.add(g)
-#             db.session.commit()
+            response = app.test_client().get('/campers/1')
+            assert response.json.get('error')
+            assert response.status_code == 404
 
-#     def test_returns_data_for_updated_message_as_json(self):
-#         '''returns data for the updated message as JSON.'''
-#         with app.app_context():
+    def test_creates_camper(self):
+        '''creates one camper using a name and age with a POST request to /campers.'''
 
-#             m = Message.query.first()
-#             id = m.id
-#             body = m.body
+        with app.app_context():
+            Camper.query.delete()
+            db.session.commit()
 
-#             response = app.test_client().patch(
-#                 f'/messages/{id}',
-#                 json={
-#                     "body":"Goodbye 👋",
-#                 }
-#             )
+            response = app.test_client().post(
+                '/campers',
+                json={
+                    'name': 'Tony Stark',
+                    'age': 15
+                }
+            ).json
 
-#             assert(response.content_type == 'application/json')
-#             assert(response.json["body"] == "Goodbye 👋")
+            assert response['id']
+            assert response['name'] == 'Tony Stark'
+            assert response['age'] == 15
 
-#             g = Message.query.filter_by(body="Goodbye 👋").first()
-#             g.body = body
-#             db.session.add(g)
-#             db.session.commit()
+            tony = Camper.query.filter(Camper.name=='Tony Stark', Camper.age==15).one_or_none()
+            assert tony
 
-#     def test_deletes_message_from_database(self):
-#         '''deletes the message from the database.'''
-#         with app.app_context():
+    def test_400_for_camper_validation_error(self):
+        '''returns a 400 status code and error message if a POST request to /campers fails.'''
 
-#             hello_from_liza = Message(
-#                 body="Hello 👋",
-#                 username="Liza")
+        with app.app_context():
 
-#             db.session.add(hello_from_liza)
-#             db.session.commit()
+            response = app.test_client().post(
+                '/campers',
+                json={
+                    'name': 'Tony Stark',
+                    'age': 19
+                }
+            )
 
-#             app.test_client().delete(
-#                 f'/messages/{hello_from_liza.id}'
-#             )
+            assert response.status_code == 400
+            assert response.json['error']
 
-#             h = Message.query.filter_by(body="Hello 👋").first()
-#             assert(not h)
+            response = app.test_client().post(
+                'campers',
+                json={
+                    'name': '',
+                    'age': 10
+                }
+            )
+
+            assert response.status_code == 400
+            assert response.json['error']
+
+    def test_gets_activities(self):
+        '''retrieves activities with GET request to /activities'''
+
+        with app.app_context():
+            activity = Activity(name="Swimming", difficulty="4")
+            db.session.add(activity)
+            db.session.commit()
+
+            response = app.test_client().get('/activities').json
+            activities = Activity.query.all()
+
+            assert [activity['id'] for activity in response] == [activity.id for activity in activities]
+            assert [activity['name'] for activity in response] == [activity.name for activity in activities]
+            assert [activity['difficulty'] for activity in response] == [activity.difficulty for activity in activities]
+
+    def test_deletes_activities_by_id(self):
+        '''deletes activities with DELETE request to /activities/<int:id>.'''
+
+        with app.app_context():
+            activity = Activity(name="Fire Building", difficulty="5")
+            db.session.add(activity)
+            db.session.commit()
+
+            response = app.test_client().delete(f'/activities/{activity.id}')
+
+            assert response.status_code == 204
+
+            activity = Activity.query.filter(Activity.id == activity.id).one_or_none()
+            assert not activity
+
+    def test_returns_404_if_no_activity(self):
+        '''returns 404 status code with DELETE request to /activities/<int:id> if activity does not exist.'''
+
+        with app.app_context():
+            Activity.query.delete()
+            db.session.commit()
+
+            response = app.test_client().delete('/activities/1')
+            assert response.json.get('error')
+            assert response.status_code == 404
+
+
+    def test_creates_signups(self):
+        '''creates signups with POST request to /signups'''
+
+        with app.app_context():
+            peter = Camper(name="Peter Parker", age=18)
+            canoeing = Activity(name="Canoeing", difficulty=1)
+            db.session.add_all([peter, canoeing])
+            db.session.commit()
+
+            response = app.test_client().post(
+                '/signups',
+                json={
+                    'time': 12,
+                    'camper_id': peter.id,
+                    'activity_id': canoeing.id
+                }
+            ).json
+
+            assert response['id']
+            assert response['time'] == 12
+            assert response['camper_id'] == peter.id
+            assert response['activity_id'] == canoeing.id
+
+            signup = Signup.query.filter(Signup.id == response['id']).one_or_none()
+            assert signup
+
+    def test_400_for_signup_validation_error(self):
+        '''returns a 400 status code and error message if a POST request to /signups fails.'''
+
+        with app.app_context():
+            peter = Camper(name="Peter Parker", age=18)
+            canoeing = Activity(name="Canoeing", difficulty=1)
+            db.session.add_all([peter, canoeing])
+            db.session.commit()
+
+            response = app.test_client().post(
+                '/signups',
+                json={
+                    'time': 24,
+                    'camper_id': peter.id,
+                    'activity_id': canoeing.id
+                }
+            )
+
+            assert response.status_code == 400
+            assert response.json['error']

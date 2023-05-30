@@ -1,32 +1,36 @@
-# from datetime import datetime
+import pytest
 
-# from app import app
-# from models import db, Message
+from app import app
+from models import db, Activity, Signup, Camper
 
-# class TestMessage:
-#     '''Message model in models.py'''
+class TestModels:
+    '''SQLAlchemy models in models.py'''
 
-#     with app.app_context():
-#         m = Message.query.filter(
-#             Message.body == "Hello 👋"
-#             ).filter(Message.username == "Liza")
+    def test_validates_camper_name(self):
+        '''require campers to have names.'''
 
-#         for message in m:
-#             db.session.delete(message)
+        with app.app_context():
 
-#         db.session.commit()
+            with pytest.raises(ValueError):
+                Camper(name=None)
 
-#     def test_has_correct_columns(self):
-#         '''has columns for message body, username, and creation time.'''
-#         with app.app_context():
+            with pytest.raises(ValueError):
+                Camper(name='')
 
-#             hello_from_liza = Message(
-#                 body="Hello 👋",
-#                 username="Liza")
+    def test_validates_camper_age(self):
+        '''require campers to have ages between 8 and 18, inclusive.'''
 
-#             db.session.add(hello_from_liza)
-#             db.session.commit()
+        with pytest.raises(ValueError):
+            Camper(name='Ben', age=0)
 
-#             assert(hello_from_liza.body == "Hello 👋")
-#             assert(hello_from_liza.username == "Liza")
-#             assert(type(hello_from_liza.created_at) == datetime)
+        with pytest.raises(ValueError):
+            Camper(name='Prabhdip', age=19)
+    
+    def test_validates_signup_time(self):
+        '''requires signups to have integer times between 0 and 23, inclusive.'''
+
+        with pytest.raises(ValueError):
+            Signup(time=-1)
+
+        with pytest.raises(ValueError):
+            Signup(time=24)
